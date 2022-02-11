@@ -92,20 +92,20 @@ class WordleGuesser:
 
 
 if __name__ == "__main__":
-    arg = sys.argv[1] if len(sys.argv) > 1 else None
+    given_word = sys.argv[1] if len(sys.argv) > 1 else None
     answer = None
-    if not arg:
+    if not given_word:
         # fiver_letter_words = [w for w in five_letter_word_set.US_WORDS if len(w) == 5]
-        fiver_letter_words = list(five_letter_word_set.US_WORDS)
+        fiver_letter_words = list(five_letter_word_set.CURATED_LIKELY_WORDS)
         rnd_idx = random.randint(0, len(fiver_letter_words) - 1)
         answer = fiver_letter_words[rnd_idx].upper()
         wordle = WordleGuesser(answer)
         wordle.take_guesses()
     else:
-        if len(arg) != 5:
+        if len(given_word) != 5:
             raise ValueError("Word length must be 5 letters")
-        if arg.lower() not in five_letter_word_set.US_WORDS:
-            raise ValueError(f"Unrecognized word: {arg.upper()}")
-        answer = arg.upper()
+        if given_word.lower() not in five_letter_word_set.US_WORDS:
+            raise ValueError(f"Unrecognized word: {given_word.upper()}")
+        answer = given_word.upper()
         wordle = WordleGuesser(answer)
         wordle.take_guesses()

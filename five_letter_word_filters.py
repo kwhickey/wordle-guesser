@@ -94,7 +94,7 @@ if __name__ == "__main__":
         spec = line.rstrip()
         args = parse_filter_spec(spec)
         print(args)
-        final_words = filter_words(five_letter_word_set.US_WORDS, args)
+        final_words = filter_words(five_letter_word_set.CURATED_LIKELY_WORDS, args)
         print(f"\n==== {len(final_words)} MATCHES ====")
         [print(w) for w in sorted(final_words)]
         print_stats(final_words)
