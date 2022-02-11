@@ -8,13 +8,13 @@ _Console-based Wordle gameplay and tool to help filter-down Worle candidate word
 _To play with a random word, run:_
 
 ```shell
-python3 five_letter_word_filters.py
+python3 wordle_game.py
 ```
 
 _To play with a word you supply, run:_
 
 ```shell
-python3 five_letter_word_filters.py AWORD
+python3 wordle_game.py AWORD
 ```
 
 _Example output:_
