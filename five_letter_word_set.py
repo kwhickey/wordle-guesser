@@ -639,6 +639,7 @@ CURATED_LIKELY_WORDS = {
     "cuvee",
     "cyber",
     "cycle",
+    "cynic",
     "cyton",
     # D
     "daddy",
