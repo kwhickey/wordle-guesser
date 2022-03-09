@@ -56,6 +56,12 @@ def parse_filter_spec(spec: str):
         help="use all US 5-letter words if provided, otherwise use the pruned down curated words list",
     )
     parser.add_argument(
+        "-X",
+        "--exclude-words",
+        nargs="+",
+        help="space-separated list of words to exclude",
+    )
+    parser.add_argument(
         "--positional-ranking-matrix",
         help="Print out a matrix of each of the given letters, and their occurrence in each position, "
         "given all the other filters applied",
@@ -90,6 +96,8 @@ def filter_words(word_set: Iterable, filter_args):
             and all([w[k] not in v for k, v in misses.items()]),
             filtered_words,
         )
+    if filter_args.exclude_words:
+        filtered_words = filter(lambda w: all([w != exwd.lower() for exwd in filter_args.exclude_words]), filtered_words)
     if filter_args.no_repeats:
         filtered_words = filter(lambda w: len(set(w)) == 5, filtered_words)
     if filter_args.no_plurals:
@@ -137,7 +145,7 @@ def print_stats(word_list: Iterable, positional_ranking_filter):
         for p in range(1, 6):
             print(f" {p} |", end="")
             for l in positional_ranking_filter:
-                print(f" {str(position_rankings[p][l]).rjust(3, ' ')} |", end="")
+                print(f" {str(position_rankings[p].get(l, '-')).rjust(3, ' ')} |", end="")
             print("")
 
 
