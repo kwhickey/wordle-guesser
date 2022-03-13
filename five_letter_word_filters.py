@@ -62,6 +62,7 @@ def parse_filter_spec(spec: str):
         help="space-separated list of words to exclude",
     )
     parser.add_argument(
+        "-R",
         "--positional-ranking-matrix",
         help="Print out a matrix of each of the given letters, and their occurrence in each position, "
         "given all the other filters applied",
