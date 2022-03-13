@@ -140,16 +140,14 @@ def print_stats(word_list: Iterable, positional_ranking_filter):
         print(f"{p}  {p_letter_stats_ranked}")
     if positional_ranking_filter:
         print("   |", end="")
-        for l in positional_ranking_filter:
-            print(f" {l.upper().rjust(3,' ') } |", end="")
-        print("")
         for p in range(1, 6):
-            print(f" {p} |", end="")
-            for l in positional_ranking_filter:
+            print(f" {str(p).rjust(3,' ') } |", end="")
+        print("")
+        for l in positional_ranking_filter:
+            print(f" {l.upper()} |", end="")
+            for p in range(1, 6):
                 print(f" {str(position_rankings[p].get(l, '-')).rjust(3, ' ')} |", end="")
             print("")
-
-
 
 
 if __name__ == "__main__":
