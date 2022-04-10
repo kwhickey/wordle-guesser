@@ -1,14 +1,19 @@
 """Filters to narrow down a set of 5-letter-words"""
 import argparse
+import copy
+import itertools
 import sys
 import re
 
-from typing import Iterable
+from datetime import datetime
+from pprint import pprint
+from typing import Iterable, List, OrderedDict
 
 import five_letter_word_set
+from wordle_game import WordleGuesser
 
 
-def parse_filter_spec(spec: str):
+def parse_filter_spec(spec: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--starts", help="word starts with one or more provided letters")
     parser.add_argument("-e", "--ends", help="word ends with one or more provided letters")
@@ -64,8 +69,31 @@ def parse_filter_spec(spec: str):
     parser.add_argument(
         "-R",
         "--positional-ranking-matrix",
-        help="Print out a matrix of each of the given letters, and their occurrence in each position, "
+        nargs="?",  # allow 0 or 1 value (counted as space-delimited)
+        const="*",  # default value when arg provided with no value
+        help="Print out a matrix of each of the given letters (leave empty or use * to print all candidate letters), and their occurrence in each position, "
         "given all the other filters applied",
+    )
+    parser.add_argument(
+        "-g",
+        "--pick-next-guess",
+        nargs="?",  # allow 0 or 1 value (counted as space-delimited)
+        const="10",  # default value when arg provided with no value
+        type=int,
+        help="Of the final words filtered down, rank and print the top N (given by arg value here, default of 10 if not provided) of the filtered words that will best narrow down options. See also --hide-guess-results"
+    )
+    parser.add_argument(
+        "-G",
+        "--pick-next-guess-from-expanded-word-list",
+        nargs="?",  # allow 0 or 1 value (counted as space-delimited)
+        const="10",  # default value when arg provided with no value
+        type=int,
+        help="Same as -g, --pick-next-guess, but rebuilds guess list to be those from the expanded words list matching the filter"
+    )
+    parser.add_argument(
+        "--hide-guess-results",
+        action="store_true",
+        help="When using -G to pick the highest ranked next guess, also add this to abbreviate printed results to only show guess and score, not results by answer",
     )
     return parser.parse_args(spec.split())
 
@@ -139,6 +167,8 @@ def print_stats(word_list: Iterable, positional_ranking_filter):
         position_rankings[p] = p_letter_stats_ranked
         print(f"{p}  {p_letter_stats_ranked}")
     if positional_ranking_filter:
+        if positional_ranking_filter == "*":
+            positional_ranking_filter = ''.join(letter_stats_ranked.keys())
         print("   |", end="")
         for p in range(1, 6):
             print(f" {str(p).rjust(3,' ') } |", end="")
@@ -149,6 +179,106 @@ def print_stats(word_list: Iterable, positional_ranking_filter):
                 print(f" {str(position_rankings[p].get(l, '-')).rjust(3, ' ')} |", end="")
             print("")
 
+
+def pick_next_guess(args: argparse.Namespace, filtered_words: List[str]):
+    """Of the final words filtered down, pick one of the filtered words that will best narrow down options"""
+    ranked_guesses_to_print = args.pick_next_guess or args.pick_next_guess_from_expanded_word_list
+    guesses = filtered_words.copy()
+    if args.pick_next_guess_from_expanded_word_list:
+        guesses = filter_words(word_set=five_letter_word_set.US_WORDS, filter_args=args)
+    guessers = {}
+    guess_results = {}
+    num_guesses = len(guesses)
+    guessing_start_time = datetime.now()
+    for guess_num, guess in enumerate(guesses, start=1):
+        guess_progress_msg = ""
+        if num_guesses > 50:
+            guess_progress_msg = f"Processing guess {str(guess_num).rjust(len(str(num_guesses)))}/{num_guesses}, guess={guess.upper()}, avg={(datetime.now() - guessing_start_time).total_seconds()/guess_num:.4f}s"
+            print(guess_progress_msg + "         \r", end="")
+        simulated_answers = filtered_words.copy()
+        if guess in simulated_answers:
+            simulated_answers.remove(guess)  # this one is known to be an exact match
+        guess_results[guess] = {}
+
+        # Run a simulation for a chosen answer,
+        # and gather results on how each guess performs in the simulation
+        num_answers = len(simulated_answers)
+        simulation_start_time = datetime.now()
+        for answer_num, answer in enumerate(simulated_answers, start=1):
+            if num_guesses > 50:
+                answer_progress_msg = f"Answer {str(answer_num).rjust(len(str(num_answers)))}/{num_answers}, answer={answer.upper()}, avg={(datetime.now() - simulation_start_time).total_seconds()/answer_num:.4f}s"
+                print(guess_progress_msg + " | " + answer_progress_msg + "         \r", end="")
+            # Get or set the WordleGuesser instance by key=answer
+            if answer in guessers:
+                guesser = guessers[answer]
+            else:
+                guesser = WordleGuesser(provided_answer=answer)
+                guessers[answer] = guesser
+            guesser.store_guess(guess)
+            args_copy = copy.deepcopy(args)
+            # so we don't re-evaluation on an internal simluation run
+            args_copy.pick_next_guess = False
+            args_copy.pick_next_guess_from_expanded_word_list = False
+            for i, letter_and_score in guesser.guess_history[guess].items():
+                pos = i+1
+                letter = letter_and_score[0]
+                score = letter_and_score[1]
+
+                # Augment the args_copy spec based on match results of this guess for the chosen answer
+                if score == 0:  # letter not in this answer
+                    # ONLY! add it to "not_contains", if it is NOT already in the "all" (from a previous guess, or previous letter in this guess)
+                    # otherwise they contradict each other
+                    if not args_copy.all or letter not in args_copy.all:
+                        args_copy.not_contains = ''.join(set(args_copy.not_contains+letter)) if args_copy.not_contains else letter
+                    old_p = list(filter(lambda x: x.startswith(str(pos)), args_copy.positions or []))
+                    new_p = f"{pos}!{letter}"
+                    if old_p:
+                        args_copy.positions.remove(old_p[0])
+                        new_p = old_p[0] + letter
+                    args_copy.positions = args_copy.positions + [new_p] if args_copy.positions else [new_p]
+                elif score == 1:  # letter in answer, but not in this position
+                    args_copy.all = ''.join(set(args_copy.all+letter)) if args_copy.all else letter
+                    # Must now remove it from "not_contains" if it exists there (from a previous guess, or previous letter in this guess)
+                    if args_copy.not_contains and letter in args_copy.not_contains:
+                        args_copy.not_contains = args_copy.not_contains.replace(letter, "")
+                    old_p = list(filter(lambda x: x.startswith(str(pos)), args_copy.positions or [])) 
+                    new_p = f"{pos}!{letter}"
+                    if old_p:
+                        args_copy.positions.remove(old_p[0])
+                        new_p = old_p[0] + letter
+                    args_copy.positions = args_copy.positions + [new_p] if args_copy.positions else [new_p]
+                elif score == 2:  # letter in answer, in this position
+                    args_copy.all = ''.join(set(args_copy.all+letter)) if args_copy.all else letter
+                    # Must now remove it from "not_contains" if it exists there (from a previous guess, or previous letter in this guess)
+                    if args_copy.not_contains and letter in args_copy.not_contains:
+                        args_copy.not_contains = args_copy.not_contains.replace(letter, "")
+                    old_p = list(filter(lambda x: x.startswith(str(pos)), args_copy.positions or [])) 
+                    if old_p:
+                        args_copy.positions.remove(old_p[0])
+                    new_p = f"{pos}{letter}"
+                    args_copy.positions = args_copy.positions + [new_p] if args_copy.positions else [new_p]
+            results = filter_words(word_set=simulated_answers, filter_args=args_copy)
+            # Use below for debugging
+            #print(f"DEBUG: answer={answer}:guess={guess}->words={simulated_answers}\n\t@{args_copy}\n\t=results:{results}")
+            guess_results[guess][answer] = sorted(results)
+    print("", end="")
+    print("")
+
+    def score_guess(guess_item):
+        guess_results_for_each_answer = guess_item[1]
+        answers_simulated = len(guess_results_for_each_answer)
+        total_results_for_all_answers = sum([len(results_for_answer) for results_for_answer in guess_results_for_each_answer.values()])
+        avg_results_per_answer = total_results_for_all_answers / answers_simulated
+        return avg_results_per_answer
+
+    print("==== NEXT GUESS WORD RANKING ====")
+    if args.hide_guess_results:
+        scored_guess_results = {item[0]: {"score": round(score_guess(item), 2)} for item in guess_results.items()}
+    else:
+        scored_guess_results = {item[0]: {"score": round(score_guess(item), 2), "results_for_answer": item[1]} for item in guess_results.items()}
+    ranked_guess_results = sorted(scored_guess_results.items(), key=lambda item: item[1]["score"])
+    top_ranked_guess_results = OrderedDict(itertools.islice(ranked_guess_results, ranked_guesses_to_print))
+    pprint(top_ranked_guess_results)
 
 if __name__ == "__main__":
     print("Enter filter spec (or -h for help):")
@@ -166,4 +296,9 @@ if __name__ == "__main__":
         print(f"\n==== {len(final_words)} MATCHES ====")
         [print(w) for w in sorted(final_words)]
         print_stats(final_words, args.positional_ranking_matrix)
+        if args.pick_next_guess and args.pick_next_guess_from_expanded_word_list:
+            print("Error: Pick one of -g or -G")
+            sys.exit(1)
+        if args.pick_next_guess or args.pick_next_guess_from_expanded_word_list:
+            pick_next_guess(args, final_words)
         print(f"==== FOR {len(final_words)} MATCHES ====")
