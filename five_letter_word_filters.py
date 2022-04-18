@@ -15,15 +15,23 @@ from wordle_game import WordleGuesser
 
 def parse_filter_spec(spec: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--starts", help="word starts with one or more provided letters")
-    parser.add_argument("-e", "--ends", help="word ends with one or more provided letters")
+    parser.add_argument(
+        "-s", "--starts", help="word starts with one or more provided letters"
+    )
+    parser.add_argument(
+        "-e", "--ends", help="word ends with one or more provided letters"
+    )
     parser.add_argument(
         "-c",
         "--contains",
         help="the middle 3 letters have the 1, 2, or 3 provided letters. Use a "
         "dot for a wildcard, like a.b, .ab, or ab. ",
     )
-    parser.add_argument("-n", "--not-contains", help="one or more letters that each appear no where in the word")
+    parser.add_argument(
+        "-n",
+        "--not-contains",
+        help="one or more letters that each appear no where in the word",
+    )
     parser.add_argument(
         "-a",
         "--all",
@@ -80,21 +88,21 @@ def parse_filter_spec(spec: str) -> argparse.Namespace:
         nargs="?",  # allow 0 or 1 value (counted as space-delimited)
         const="10",  # default value when arg provided with no value
         type=int,
-        help="Provides the best guess to use which will weed out the most answers. Uses the entire expanded words list, unfiltered, as guess candidates and simulate use of each guess against each of the answer options from the provided filter. Rank guesses (10 ranked by default if a number not provided) by their score, where a lower score means least answer options per guess on avg (best score of 1.00). See also --show-next-guess-results"
+        help="Provides the best guess to use which will weed out the most answers. Uses the entire expanded words list, unfiltered, as guess candidates and simulate use of each guess against each of the answer options from the provided filter. Rank guesses (10 ranked by default if a number not provided) by their score, where a lower score means least answer options per guess on avg (best score of 1.00). See also --show-next-guess-results",
     )
     parser.add_argument(
         "--G",
         nargs="?",  # allow 0 or 1 value (counted as space-delimited)
         const="10",  # default value when arg provided with no value
         type=int,
-        help="Same as -g, but limits guess candidates to the filtered down words."
+        help="Same as -g, but limits guess candidates to the filtered down words.",
     )
     parser.add_argument(
         "--Gx",
         nargs="?",  # allow 0 or 1 value (counted as space-delimited)
         const="10",  # default value when arg provided with no value
         type=int,
-        help="Same as --G, but rebuilds guess list to be those from the expanded words list matching the filter"
+        help="Same as --G, but rebuilds guess list to be those from the expanded words list matching the filter",
     )
     parser.add_argument(
         "--show-next-guess-results",
@@ -108,24 +116,40 @@ def parse_filter_spec(spec: str) -> argparse.Namespace:
 def filter_words(word_set: Iterable, filter_args):
     filtered_words = iter(word_set)
     if filter_args.starts:
-        filtered_words = filter(lambda w: w.startswith(filter_args.starts), filtered_words)
+        filtered_words = filter(
+            lambda w: w.startswith(filter_args.starts), filtered_words
+        )
     if filter_args.ends:
         filtered_words = filter(lambda w: w.endswith(filter_args.ends), filtered_words)
     if filter_args.contains:
         if "." in filter_args.contains:
-            filtered_words = filter(lambda w: bool(re.match(filter_args.contains, w[1:-1])), filtered_words)
+            filtered_words = filter(
+                lambda w: bool(re.match(filter_args.contains, w[1:-1])), filtered_words
+            )
         else:
-            filtered_words = filter(lambda w: filter_args.contains in w[1:-1], filtered_words)
+            filtered_words = filter(
+                lambda w: filter_args.contains in w[1:-1], filtered_words
+            )
     if filter_args.not_contains:
-        filtered_words = filter(lambda w: all([l not in w for l in filter_args.not_contains]), filtered_words)
+        filtered_words = filter(
+            lambda w: all([l not in w for l in filter_args.not_contains]),
+            filtered_words,
+        )
     if filter_args.all:
         if len(set(filter_args.all)) > 5:
             # If more than 5 letters are provided, the word must contain all letters of some 5-letter subset
-            filtered_words = filter(lambda w: sum([w.count(l) for l in set(filter_args.all)]) >= 5, filtered_words)
+            filtered_words = filter(
+                lambda w: sum([w.count(l) for l in set(filter_args.all)]) >= 5,
+                filtered_words,
+            )
         else:
-            filtered_words = filter(lambda w: all([l in w for l in filter_args.all]), filtered_words)
+            filtered_words = filter(
+                lambda w: all([l in w for l in filter_args.all]), filtered_words
+            )
     if filter_args.positions:
-        exact_matches = {int(pl[0]) - 1: pl[1] for pl in filter_args.positions if "!" not in pl}
+        exact_matches = {
+            int(pl[0]) - 1: pl[1] for pl in filter_args.positions if "!" not in pl
+        }
         misses = {int(pl[0]) - 1: pl[2:] for pl in filter_args.positions if "!" in pl}
         filtered_words = filter(
             lambda w: all([w[k] == v for k, v in exact_matches.items()])
@@ -133,14 +157,21 @@ def filter_words(word_set: Iterable, filter_args):
             filtered_words,
         )
     if filter_args.exclude_words:
-        filtered_words = filter(lambda w: all([w != exwd.lower() for exwd in filter_args.exclude_words]), filtered_words)
+        filtered_words = filter(
+            lambda w: all([w != exwd.lower() for exwd in filter_args.exclude_words]),
+            filtered_words,
+        )
     if filter_args.no_repeats:
         filtered_words = filter(lambda w: len(set(w)) == 5, filtered_words)
     if filter_args.no_plurals:
-        filtered_words = filter(lambda w: not w.endswith("s") or w.endswith("ss"), filtered_words)
+        filtered_words = filter(
+            lambda w: not w.endswith("s") or w.endswith("ss"), filtered_words
+        )
     if filter_args.no_past_tense:
         filtered_words = filter(
-            lambda w: not w.endswith("ed") or (w.endswith("eed") and w not in ["freed"]) or w in ["unwed", "embed"],
+            lambda w: not w.endswith("ed")
+            or (w.endswith("eed") and w not in ["freed"])
+            or w in ["unwed", "embed"],
             filtered_words,
         )
     return set(filtered_words)
@@ -151,7 +182,10 @@ def print_stats(word_list: Iterable, positional_ranking_filter):
     merged_words = "".join(word_list)
     distinct_letters = set(merged_words)
     letter_stats = {l: merged_words.count(l) for l in distinct_letters}
-    letter_stats_ranked = {k: v for k, v in sorted(letter_stats.items(), reverse=True, key=lambda item: item[1])}
+    letter_stats_ranked = {
+        k: v
+        for k, v in sorted(letter_stats.items(), reverse=True, key=lambda item: item[1])
+    }
 
     print("==== WORD LIST STATS ====")
     print(
@@ -169,13 +203,16 @@ def print_stats(word_list: Iterable, positional_ranking_filter):
         distinct_p_letters = set(p_letters)
         p_letter_stats = {l: p_letters.count(l) for l in distinct_p_letters}
         p_letter_stats_ranked = {
-            k: v for k, v in sorted(p_letter_stats.items(), reverse=True, key=lambda item: item[1])
+            k: v
+            for k, v in sorted(
+                p_letter_stats.items(), reverse=True, key=lambda item: item[1]
+            )
         }
         position_rankings[p] = p_letter_stats_ranked
         print(f"{p}  {p_letter_stats_ranked}")
     if positional_ranking_filter:
         if positional_ranking_filter == "*":
-            positional_ranking_filter = ''.join(letter_stats_ranked.keys())
+            positional_ranking_filter = "".join(letter_stats_ranked.keys())
         print("   |", end="")
         for p in range(1, 6):
             print(f" {str(p).rjust(3,' ') } |", end="")
@@ -183,7 +220,9 @@ def print_stats(word_list: Iterable, positional_ranking_filter):
         for l in positional_ranking_filter:
             print(f" {l.upper()} |", end="")
             for p in range(1, 6):
-                print(f" {str(position_rankings[p].get(l, '-')).rjust(3, ' ')} |", end="")
+                print(
+                    f" {str(position_rankings[p].get(l, '-')).rjust(3, ' ')} |", end=""
+                )
             print("")
 
 
@@ -216,7 +255,10 @@ def pick_next_guess(args: argparse.Namespace, filtered_words: List[str]):
         for answer_num, answer in enumerate(simulated_answers, start=1):
             if num_guesses > 50:
                 answer_progress_msg = f"Answer {str(answer_num).rjust(len(str(num_answers)))}/{num_answers}, answer={answer.upper()}, avg={(datetime.now() - simulation_start_time).total_seconds()/answer_num:.4f}s"
-                print(guess_progress_msg + " | " + answer_progress_msg + "         \r", end="")
+                print(
+                    guess_progress_msg + " | " + answer_progress_msg + "         \r",
+                    end="",
+                )
             # Get or set the WordleGuesser instance by key=answer
             if answer in guessers:
                 guesser = guessers[answer]
@@ -230,7 +272,7 @@ def pick_next_guess(args: argparse.Namespace, filtered_words: List[str]):
             args_copy.G = False
             args_copy.Gx = False
             for i, letter_and_score in guesser.guess_history[guess].items():
-                pos = i+1
+                pos = i + 1
                 letter = letter_and_score[0]
                 score = letter_and_score[1]
 
@@ -239,37 +281,77 @@ def pick_next_guess(args: argparse.Namespace, filtered_words: List[str]):
                     # ONLY! add it to "not_contains", if it is NOT already in the "all" (from a previous guess, or previous letter in this guess)
                     # otherwise they contradict each other
                     if not args_copy.all or letter not in args_copy.all:
-                        args_copy.not_contains = ''.join(set(args_copy.not_contains+letter)) if args_copy.not_contains else letter
-                    old_p = list(filter(lambda x: x.startswith(str(pos)), args_copy.positions or []))
+                        args_copy.not_contains = (
+                            "".join(set(args_copy.not_contains + letter))
+                            if args_copy.not_contains
+                            else letter
+                        )
+                    old_p = list(
+                        filter(
+                            lambda x: x.startswith(str(pos)), args_copy.positions or []
+                        )
+                    )
                     new_p = f"{pos}!{letter}"
                     if old_p:
                         args_copy.positions.remove(old_p[0])
                         new_p = old_p[0] + letter
-                    args_copy.positions = args_copy.positions + [new_p] if args_copy.positions else [new_p]
+                    args_copy.positions = (
+                        args_copy.positions + [new_p]
+                        if args_copy.positions
+                        else [new_p]
+                    )
                 elif score == 1:  # letter in answer, but not in this position
-                    args_copy.all = ''.join(set(args_copy.all+letter)) if args_copy.all else letter
+                    args_copy.all = (
+                        "".join(set(args_copy.all + letter))
+                        if args_copy.all
+                        else letter
+                    )
                     # Must now remove it from "not_contains" if it exists there (from a previous guess, or previous letter in this guess)
                     if args_copy.not_contains and letter in args_copy.not_contains:
-                        args_copy.not_contains = args_copy.not_contains.replace(letter, "")
-                    old_p = list(filter(lambda x: x.startswith(str(pos)), args_copy.positions or [])) 
+                        args_copy.not_contains = args_copy.not_contains.replace(
+                            letter, ""
+                        )
+                    old_p = list(
+                        filter(
+                            lambda x: x.startswith(str(pos)), args_copy.positions or []
+                        )
+                    )
                     new_p = f"{pos}!{letter}"
                     if old_p:
                         args_copy.positions.remove(old_p[0])
                         new_p = old_p[0] + letter
-                    args_copy.positions = args_copy.positions + [new_p] if args_copy.positions else [new_p]
+                    args_copy.positions = (
+                        args_copy.positions + [new_p]
+                        if args_copy.positions
+                        else [new_p]
+                    )
                 elif score == 2:  # letter in answer, in this position
-                    args_copy.all = ''.join(set(args_copy.all+letter)) if args_copy.all else letter
+                    args_copy.all = (
+                        "".join(set(args_copy.all + letter))
+                        if args_copy.all
+                        else letter
+                    )
                     # Must now remove it from "not_contains" if it exists there (from a previous guess, or previous letter in this guess)
                     if args_copy.not_contains and letter in args_copy.not_contains:
-                        args_copy.not_contains = args_copy.not_contains.replace(letter, "")
-                    old_p = list(filter(lambda x: x.startswith(str(pos)), args_copy.positions or [])) 
+                        args_copy.not_contains = args_copy.not_contains.replace(
+                            letter, ""
+                        )
+                    old_p = list(
+                        filter(
+                            lambda x: x.startswith(str(pos)), args_copy.positions or []
+                        )
+                    )
                     if old_p:
                         args_copy.positions.remove(old_p[0])
                     new_p = f"{pos}{letter}"
-                    args_copy.positions = args_copy.positions + [new_p] if args_copy.positions else [new_p]
+                    args_copy.positions = (
+                        args_copy.positions + [new_p]
+                        if args_copy.positions
+                        else [new_p]
+                    )
             results = filter_words(word_set=simulated_answers, filter_args=args_copy)
             # Use below for debugging
-            #print(f"DEBUG: answer={answer}:guess={guess}->words={simulated_answers}\n\t@{args_copy}\n\t=results:{results}")
+            # print(f"DEBUG: answer={answer}:guess={guess}->words={simulated_answers}\n\t@{args_copy}\n\t=results:{results}")
             guess_results[guess][answer] = sorted(results)
     print("", end="")
     print("")
@@ -279,18 +361,37 @@ def pick_next_guess(args: argparse.Namespace, filtered_words: List[str]):
         if not guess_results_for_each_answer:  # empty list
             return 0
         answers_simulated = len(guess_results_for_each_answer)
-        total_results_for_all_answers = sum([len(results_for_answer) for results_for_answer in guess_results_for_each_answer.values()])
+        total_results_for_all_answers = sum(
+            [
+                len(results_for_answer)
+                for results_for_answer in guess_results_for_each_answer.values()
+            ]
+        )
         avg_results_per_answer = total_results_for_all_answers / answers_simulated
         return avg_results_per_answer
 
     print("==== NEXT GUESS WORD RANKING ====")
     if args.show_next_guess_results:
-        scored_guess_results = {item[0]: {"score": round(score_guess(item), 2), "results_for_answer": item[1]} for item in guess_results.items()}
+        scored_guess_results = {
+            item[0]: {
+                "score": round(score_guess(item), 2),
+                "results_for_answer": item[1],
+            }
+            for item in guess_results.items()
+        }
     else:
-        scored_guess_results = {item[0]: {"score": round(score_guess(item), 2)} for item in guess_results.items()}
-    ranked_guess_results = sorted(scored_guess_results.items(), key=lambda item: item[1]["score"])
-    top_ranked_guess_results = OrderedDict(itertools.islice(ranked_guess_results, ranked_guesses_to_print))
+        scored_guess_results = {
+            item[0]: {"score": round(score_guess(item), 2)}
+            for item in guess_results.items()
+        }
+    ranked_guess_results = sorted(
+        scored_guess_results.items(), key=lambda item: item[1]["score"]
+    )
+    top_ranked_guess_results = OrderedDict(
+        itertools.islice(ranked_guess_results, ranked_guesses_to_print)
+    )
     pprint(top_ranked_guess_results)
+
 
 if __name__ == "__main__":
     print("Enter filter spec (or -h for help):")
