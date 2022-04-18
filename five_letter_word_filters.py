@@ -80,20 +80,27 @@ def parse_filter_spec(spec: str) -> argparse.Namespace:
         nargs="?",  # allow 0 or 1 value (counted as space-delimited)
         const="10",  # default value when arg provided with no value
         type=int,
-        help="Of the final words filtered down, rank and print the top N (given by arg value here, default of 10 if not provided) of the filtered words that will best narrow down options. See also --hide-guess-results"
+        help="Provides the best guess to use which will weed out the most answers. Uses the entire expanded words list, unfiltered, as guess candidates and simulate use of each guess against each of the answer options from the provided filter. Rank guesses (10 ranked by default if a number not provided) by their score, where a lower score means least answer options per guess on avg (best score of 1.00). See also --show-next-guess-results"
     )
     parser.add_argument(
-        "-G",
-        "--pick-next-guess-from-expanded-word-list",
+        "--G",
         nargs="?",  # allow 0 or 1 value (counted as space-delimited)
         const="10",  # default value when arg provided with no value
         type=int,
-        help="Same as -g, --pick-next-guess, but rebuilds guess list to be those from the expanded words list matching the filter"
+        help="Same as -g, but limits guess candidates to the filtered down words."
     )
     parser.add_argument(
-        "--hide-guess-results",
+        "--Gx",
+        nargs="?",  # allow 0 or 1 value (counted as space-delimited)
+        const="10",  # default value when arg provided with no value
+        type=int,
+        help="Same as --G, but rebuilds guess list to be those from the expanded words list matching the filter"
+    )
+    parser.add_argument(
+        "--show-next-guess-results",
         action="store_true",
-        help="When using -G to pick the highest ranked next guess, also add this to abbreviate printed results to only show guess and score, not results by answer",
+        default=False,
+        help="When using -g, --G, or --Gx to pick the highest ranked next guess, also add this arg to print out the guess results for each answer+guess combo",
     )
     return parser.parse_args(spec.split())
 
@@ -182,9 +189,11 @@ def print_stats(word_list: Iterable, positional_ranking_filter):
 
 def pick_next_guess(args: argparse.Namespace, filtered_words: List[str]):
     """Of the final words filtered down, pick one of the filtered words that will best narrow down options"""
-    ranked_guesses_to_print = args.pick_next_guess or args.pick_next_guess_from_expanded_word_list
-    guesses = filtered_words.copy()
-    if args.pick_next_guess_from_expanded_word_list:
+    ranked_guesses_to_print = args.pick_next_guess or args.G or args.Gx
+    guesses = five_letter_word_set.US_WORDS
+    if args.G:
+        guesses = filtered_words.copy()
+    if args.Gx:
         guesses = filter_words(word_set=five_letter_word_set.US_WORDS, filter_args=args)
     guessers = {}
     guess_results = {}
@@ -216,9 +225,10 @@ def pick_next_guess(args: argparse.Namespace, filtered_words: List[str]):
                 guessers[answer] = guesser
             guesser.store_guess(guess)
             args_copy = copy.deepcopy(args)
-            # so we don't re-evaluation on an internal simluation run
+            # so we don't re-evaluate on an internal simluation run
             args_copy.pick_next_guess = False
-            args_copy.pick_next_guess_from_expanded_word_list = False
+            args_copy.G = False
+            args_copy.Gx = False
             for i, letter_and_score in guesser.guess_history[guess].items():
                 pos = i+1
                 letter = letter_and_score[0]
@@ -266,16 +276,18 @@ def pick_next_guess(args: argparse.Namespace, filtered_words: List[str]):
 
     def score_guess(guess_item):
         guess_results_for_each_answer = guess_item[1]
+        if not guess_results_for_each_answer:  # empty list
+            return 0
         answers_simulated = len(guess_results_for_each_answer)
         total_results_for_all_answers = sum([len(results_for_answer) for results_for_answer in guess_results_for_each_answer.values()])
         avg_results_per_answer = total_results_for_all_answers / answers_simulated
         return avg_results_per_answer
 
     print("==== NEXT GUESS WORD RANKING ====")
-    if args.hide_guess_results:
-        scored_guess_results = {item[0]: {"score": round(score_guess(item), 2)} for item in guess_results.items()}
-    else:
+    if args.show_next_guess_results:
         scored_guess_results = {item[0]: {"score": round(score_guess(item), 2), "results_for_answer": item[1]} for item in guess_results.items()}
+    else:
+        scored_guess_results = {item[0]: {"score": round(score_guess(item), 2)} for item in guess_results.items()}
     ranked_guess_results = sorted(scored_guess_results.items(), key=lambda item: item[1]["score"])
     top_ranked_guess_results = OrderedDict(itertools.islice(ranked_guess_results, ranked_guesses_to_print))
     pprint(top_ranked_guess_results)
@@ -296,9 +308,9 @@ if __name__ == "__main__":
         print(f"\n==== {len(final_words)} MATCHES ====")
         [print(w) for w in sorted(final_words)]
         print_stats(final_words, args.positional_ranking_matrix)
-        if args.pick_next_guess and args.pick_next_guess_from_expanded_word_list:
-            print("Error: Pick one of -g or -G")
+        if sum(map(bool, [args.pick_next_guess, args.G, args.Gx])) > 2:
+            print("Error: Pick one of -g or -G or --Gx")
             sys.exit(1)
-        if args.pick_next_guess or args.pick_next_guess_from_expanded_word_list:
+        if args.pick_next_guess or args.G or args.Gx:
             pick_next_guess(args, final_words)
         print(f"==== FOR {len(final_words)} MATCHES ====")
